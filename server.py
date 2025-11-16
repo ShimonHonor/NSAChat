@@ -8,7 +8,8 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
 server.listen()
 
-clients = []  # limit
+clients = []
+max_clients = 10
 nicknames = []
 message_log = []  # Store messages
 
@@ -61,6 +62,12 @@ def handle(client, nickname):
 def receive():
     while True:
         client, address = server.accept()
+        if len(clients) >= max_clients:
+            print(f"Connection attempt from {address}, but server is full.")
+            client.send("Server full. Try again later.".encode('ascii'))
+            client.close()
+            continue
+
         print(f"Connected with {str(address)}")
 
         client.send('Nickname: '.encode('ascii'))
