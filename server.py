@@ -48,7 +48,6 @@ def handle(client, nickname):
                     client.send("ERROR: Unknown GET command".encode('ascii'))
 
             else:
-                # Regular chat message
                 broadcast(f"{nickname}: {message}".encode('ascii'))
 
         except:
