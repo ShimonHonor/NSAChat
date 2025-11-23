@@ -9,16 +9,31 @@ server.bind((host, port))
 server.listen()
 
 clients = []
-max_clients = 10
 nicknames = []
 message_log = []  # Store messages
+max_clients = 10
 
 
 def broadcast(message, save=True):
     if save:
-        message_log.append(message.decode('utf-8'))  # store as str
+        message_log.append(message.decode('utf-8'))
     for client in clients:
         client.send(message)
+
+
+def send_private(sender_client, sender_name, target_name, content):
+    if target_name not in nicknames:
+        sender_client.send(f"ERROR: User '{target_name}' not found.".encode('ascii'))
+        return
+
+    target_index = nicknames.index(target_name)
+    target_client = clients[target_index]
+
+    # Message to target
+    target_client.send(f"[DM from {sender_name}]: {content}".encode('ascii'))
+
+    # Confirmation to sender
+    sender_client.send(f"[DM to {target_name}]: {content}".encode('ascii'))
 
 
 def handle(client, nickname):
@@ -26,41 +41,73 @@ def handle(client, nickname):
         try:
             message = client.recv(1024).decode('ascii')
 
+            # logout
             if message == 'logout':
-                broadcast(f'{nickname} has logged out!'.encode('ascii'))
+                broadcast(f"{nickname} has logged out!".encode('ascii'))
                 clients.remove(client)
                 client.close()
+                nicknames.remove(nickname)
                 break
 
+            # POST
             elif message.startswith("POST|"):
                 content = message.split("|", 1)[1].strip()
                 msg = f"{nickname}: {content}"
                 broadcast(msg.encode('ascii'))
                 client.send("OK".encode('ascii'))
 
+            # GET
             elif message.startswith("GET|"):
                 command = message.split("|", 1)[1].strip()
-                if command == "latest":  # Sends last 5 messages
+                if command == "latest":
                     last_messages = message_log[-5:]
                     response = "\n".join(last_messages) if last_messages else "No messages yet."
                     client.send(response.encode('ascii'))
                 else:
                     client.send("ERROR: Unknown GET command".encode('ascii'))
 
+            # HEAD (active users)
+            elif message.startswith("HEAD"):
+                if nicknames:
+                    users = "\n".join(nicknames)
+                    response = f"Active users:\n{users}"
+                else:
+                    response = "Active users:\nNone"
+                client.send(response.encode('ascii'))
+
+            # OPTIONS
+            elif message.startswith("OPTIONS"):
+                options = "POST, GET, HEAD, OPTIONS, DM, LOGOUT"
+                client.send(options.encode('ascii'))
+
+            # DM
+            elif message.startswith("DM|"):
+                parts = message.split("|", 2)
+                if len(parts) < 3:
+                    client.send("ERROR: Correct format is DM|username|message".encode('ascii'))
+                else:
+                    target_name = parts[1].strip()
+                    content = parts[2].strip()
+                    send_private(client, nickname, target_name, content)
+
+            # DEFAULT message
             else:
                 broadcast(f"{nickname}: {message}".encode('ascii'))
 
         except:
-            clients.remove(client)
+            if client in clients:
+                clients.remove(client)
             client.close()
+            if nickname in nicknames:
+                nicknames.remove(nickname)
             broadcast(f"--- {nickname} has left the chat ---".encode('ascii'), save=False)
-            nicknames.remove(nickname)
             break
 
 
 def receive():
     while True:
         client, address = server.accept()
+
         if len(clients) >= max_clients:
             print(f"Connection attempt from {address}, but server is full.")
             client.send("Server full. Try again later.".encode('ascii'))
@@ -69,11 +116,13 @@ def receive():
 
         print(f"Connected with {str(address)}")
 
-        client.send('Nickname: '.encode('ascii'))
+        client.send("NICK".encode('ascii'))
         nickname = client.recv(1024).decode('ascii')
-        nicknames.append(nickname)
+
         clients.append(client)
-        print(f"Nickname of the new client: {nickname}")
+        nicknames.append(nickname)
+
+        print(f"Nickname of new client: {nickname}")
         broadcast(f"{nickname} has joined the chat room".encode('ascii'))
         client.send("Connected to server".encode('ascii'))
 
