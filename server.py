@@ -2,7 +2,7 @@ import threading
 import socket
 
 host = '127.0.0.1'  # localhost
-port = 55555
+port = 55556
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
@@ -41,8 +41,12 @@ def handle(client, nickname):
         try:
             message = client.recv(1024).decode('ascii')
 
+            # normalizer
+            text = message.strip()
+            cmd = text.upper()
+
             # logout
-            if message == 'logout':
+            if cmd == 'LOGOUT':
                 broadcast(f"{nickname} has logged out!".encode('ascii'))
                 clients.remove(client)
                 client.close()
@@ -50,15 +54,15 @@ def handle(client, nickname):
                 break
 
             # POST
-            elif message.startswith("POST|"):
+            elif cmd.startswith("POST|"):
                 content = message.split("|", 1)[1].strip()
                 msg = f"{nickname}: {content}"
                 broadcast(msg.encode('ascii'))
                 client.send("OK".encode('ascii'))
 
             # GET
-            elif message.startswith("GET|"):
-                command = message.split("|", 1)[1].strip()
+            elif cmd.startswith("GET|"):
+                command = message.split("|", 1)[1].strip().lower()
                 if command == "latest":
                     last_messages = message_log[-5:]
                     response = "\n".join(last_messages) if last_messages else "No messages yet."
@@ -66,8 +70,8 @@ def handle(client, nickname):
                 else:
                     client.send("ERROR: Unknown GET command".encode('ascii'))
 
-            # HEAD (active users)
-            elif message.startswith("HEAD"):
+            # HEAD
+            elif cmd.startswith("HEAD"):
                 if nicknames:
                     users = "\n".join(nicknames)
                     response = f"Active users:\n{users}"
@@ -76,12 +80,12 @@ def handle(client, nickname):
                 client.send(response.encode('ascii'))
 
             # OPTIONS
-            elif message.startswith("OPTIONS"):
+            elif cmd.startswith("OPTIONS"):
                 options = "POST, GET, HEAD, OPTIONS, DM, LOGOUT"
                 client.send(options.encode('ascii'))
 
             # DM
-            elif message.startswith("DM|"):
+            elif cmd.startswith("DM|"):
                 parts = message.split("|", 2)
                 if len(parts) < 3:
                     client.send("ERROR: Correct format is DM|username|message".encode('ascii'))
@@ -90,7 +94,7 @@ def handle(client, nickname):
                     content = parts[2].strip()
                     send_private(client, nickname, target_name, content)
 
-            # DEFAULT message
+            # DEFAULT
             else:
                 broadcast(f"{nickname}: {message}".encode('ascii'))
 
