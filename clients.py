@@ -1,9 +1,8 @@
 import socket
 import threading
-from datetime import time
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(('127.0.0.1', 55556))
+client.connect(('127.0.0.1', 55555))
 nickname = input("Enter a nickname: ")
 
 def receive():
@@ -15,7 +14,7 @@ def receive():
             else:
                 print(message)
         except:
-            print("An error occured")
+            print("An error occurred")
             client.close()
             break
 
